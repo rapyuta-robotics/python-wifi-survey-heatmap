@@ -42,6 +42,7 @@ import wx
 import json
 import os
 import subprocess
+import rospy
 
 from wifi_survey_heatmap.collector import Collector
 from wifi_survey_heatmap.libnl import Scanner
@@ -353,7 +354,7 @@ class FloorplanPanel(wx.Panel):
         self.Refresh()
 
     def _do_measurement(self, pos):
-        self.parent.SetStatusText('Starting survey...')
+        rospy.loginfo('Starting survey...')
         # Add new survey point
         self.survey_points.append(SurveyPoint(self, pos[0], pos[1]))
         # Delete failed survey points
@@ -403,7 +404,7 @@ class FloorplanPanel(wx.Panel):
             return
 
         # Get all signal metrics from nl
-        self.parent.SetStatusText(
+        rospy.loginfo(
             'Getting signal metrics (Quality, signal strength, etc.)...')
         self.Refresh()
         data = self.collector.scanner.get_iface_data()
@@ -413,7 +414,7 @@ class FloorplanPanel(wx.Panel):
 
         # Scan APs in the neighborhood
         if self.parent.scan:
-            self.parent.SetStatusText(
+            rospy.loginfo(
                 'Scanning all access points within reach...')
             self.Refresh()
             res['scan_results'] = self.collector.scan_all_access_points()
@@ -422,7 +423,7 @@ class FloorplanPanel(wx.Panel):
         # Save results and mark survey point as complete
         self.survey_points[-1].set_result(res)
         self.survey_points[-1].set_is_finished()
-        self.parent.SetStatusText(
+        rospy.loginfo(
             'Saving to: %s' % self.data_filename
         )
         self.Refresh()
