@@ -38,6 +38,7 @@ Jason Antman <jason@jasonantman.com> <http://www.jasonantman.com>
 import sys
 import argparse
 import logging
+import time
 import wx
 import json
 import os
@@ -382,6 +383,8 @@ class FloorplanPanel(wx.Panel):
                     self.survey_points[-1].set_progress(count, steps)
                     count += 1
 
+
+
                     # Check if we're still connected to the same AP
                     if not self._check_bssid():
                         self._abort("BSSID check failed")
@@ -397,6 +400,8 @@ class FloorplanPanel(wx.Panel):
                     res['%s%s' % (protoname, suffix)] = {
                         x: getattr(tmp, x, None) for x in RESULT_FIELDS
                     }
+                    rospy.loginfo(
+                        f'iperf at count {count} finished successfully')
 
         # Check if we're still connected to the same AP
         if not self._check_bssid():
@@ -467,7 +472,7 @@ class FloorplanPanel(wx.Panel):
         proto = "UDP" if udp else "TCP"
         # iperf3 default direction is uploading to the server
         direction = "Download" if reverse else "Upload"
-        self.parent.SetStatusText(
+        rospy.loginfo(
             'Running iperf %d/4: %s (%s) - takes %i seconds' % (count,
                                                                 direction,
                                                                 proto,
@@ -475,11 +480,12 @@ class FloorplanPanel(wx.Panel):
         )
         self.Refresh()
         tmp = self.collector.run_iperf(udp, reverse)
+        time.sleep(2)
         if tmp.error is None:
             return tmp
         # else this is an error
         if tmp.error.startswith('unable to connect to server'):
-            self.warn(
+            rospy.logerr(
                 'ERROR: Unable to connect to iperf server at {}. Aborting.'.
                 format(self.collector._iperf_server)
             )

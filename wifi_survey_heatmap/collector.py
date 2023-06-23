@@ -41,6 +41,7 @@ from time import sleep
 from wifi_survey_heatmap.libnl import Scanner
 
 import iperf3
+import rospy
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,9 @@ class Collector(object):
             client.server_hostname = self._iperf_server
             client.port = 5201 # substitute some default port
 
-        client.protocol = 'udp' if udp else 'tcp'
+        client.protocol = 'tcp' if udp else 'tcp'
         client.reverse = reverse
-        logger.info(
+        rospy.loginfo(
             'Running iperf to %s; udp=%s reverse=%s', self._iperf_server,
             udp, reverse
         )
@@ -81,7 +82,7 @@ class Collector(object):
             res = client.run()
             if res.error is None:
                 break
-            logger.error('iperf error %s; retrying', res.error)
+            rospy.logerr('iperf error %s; retrying', res.error)
         logger.debug('iperf result: %s', res)
         return res
 
