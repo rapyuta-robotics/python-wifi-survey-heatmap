@@ -180,7 +180,7 @@ class SafeEncoder(json.JSONEncoder):
 
 class FloorplanPanel(wx.Panel):
 
-    def __init__(self, parent):
+    def __init__(self, parent, tcp_only = True):
         super(FloorplanPanel, self).__init__(parent)
         self.parent = parent
         self.img_path = parent.img_path
@@ -196,6 +196,7 @@ class FloorplanPanel(wx.Panel):
         self._moving_y = None
         self.scale_x = 1.0
         self.scale_y = 1.0
+        self.tcp_only = tcp_only
         self.data_filename = '%s.json' % self.parent.survey_title
         if os.path.exists(self.data_filename):
             self._load_file(self.data_filename)
@@ -378,6 +379,8 @@ class FloorplanPanel(wx.Panel):
         # Skip iperf test if empty server string was given
         if self.collector._iperf_server is not None:
             for protoname, udp in {'tcp': False, 'udp': True}.items():
+                if self.tcp_only and protoname == 'udp':
+                    continue
                 for suffix, reverse in {'': False, '-reverse': True}.items():
                     # Update progress mark
                     self.survey_points[-1].set_progress(count, steps)
