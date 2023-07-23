@@ -43,8 +43,11 @@ import fcntl
 import logging
 import socket
 import struct
+
+import getpass
 import time
 import datetime
+import os
 
 # For scanning access points in the vicinity
 import libnl.handlers
@@ -69,13 +72,20 @@ from libnl.socket_ import (
     nl_socket_modify_cb
 )
 from libnl.handlers import NL_CB_CUSTOM, NL_CB_VALID, NL_SKIP
+import sys
 
 logger = logging.getLogger(__name__)
 
 
+
+REQUIRED_PROP = {"bssid", "signal_mbm", "ssid", "name","mac"}
+
+
+
+
 class Scanner(object):
 
-    def __init__(self, interface_name=None, scan=True):
+    def __init__(self, interface_name=None, scan=True, restricted = False, concise = False):
         super().__init__()
         logger.debug(
             'Initializing Scanner for interface: %s',
@@ -91,6 +101,11 @@ class Scanner(object):
         self.if_idx = None
         self.iface_names = self.list_all_interfaces()
         self.bssid = None
+        self.restricted = restricted
+        self.concise = concise
+
+
+
 
     def set_interface(self, interface_name):
         for idx in self.iface_data:
@@ -143,6 +158,25 @@ class Scanner(object):
             # the results later.
             arg.value = 0
         return libnl.handlers.NL_SKIP
+    
+    def print_ssid(self,ie):
+        ielen = len(ie)
+        i = 0
+        while ielen >= 2 and ielen >= ie[i + 1]:
+            if ie[i] == 0 and 0 <= ie[i + 1] <= 32:
+                len_ = ie[i + 1]
+                data = ie[i + 2 : i + 2 + len_]
+                for j in range(len_):
+                    if data[j] != ord(' ') and data[j] != ord('\\'):
+                        print(chr(data[j]), end='')
+                    elif data[j] == ord(' ') and (j != 0 and j != len_ - 1):
+                        print(" ", end='')
+                    else:
+                        print("\\x{0:02x}".format(data[j]), end='')
+                print("\n")
+                break
+            ielen -= ie[i + 1] + 2
+            ie = ie[i + 1 + 2:]
 
     def _callback_dump(self, msg, results):
         # Here is where SSIDs and their data is decoded from the binary data
@@ -156,6 +190,8 @@ class Scanner(object):
 
         # First we must parse incoming data into manageable chunks and check
         # for errors.
+
+
         gnlh = genlmsghdr(nlmsg_data(nlmsg_hdr(msg)))
         tb = dict((i, None) for i in range(nl80211.NL80211_ATTR_MAX + 1))
         nla_parse(tb, nl80211.NL80211_ATTR_MAX, genlmsg_attrdata(
@@ -175,6 +211,8 @@ class Scanner(object):
             logger.warning(
                 'No additional information available for an access point!')
             return libnl.handlers.NL_SKIP
+        
+        #self.print_ssid(nla_data(bss[nl80211.NL80211_BSS_INFORMATION_ELEMENTS]))
 
         # Further parse and then store. Overwrite existing data for
         # BSSID if scan is run multiple times.
@@ -338,7 +376,10 @@ class Scanner(object):
 
         # Scan for access points 1 or more (if requested) times.
         results = dict()
-        for i in range(2, -1, -1):  # Three tries on errors.
+        ssid = None
+        for i in range(3, -1, -1):  # Three tries on errors. If restricted, perform an additional scan for ssid
+            # if reset_uid:
+
             ret = self._do_scan_trigger(if_index, driver_id, mcid)
             if ret < 0:
                 logger.debug('do_scan_trigger() returned {0},'
@@ -357,10 +398,28 @@ class Scanner(object):
 
         logger.debug('Found {0} access points:'.format(len(results)))
 
+        # if restricted, drop unecessary data
+        if self.restricted:
+            devicename= self.interface_name
+            output = os.popen('iwconfig '+devicename+' | grep '+devicename+" 2>/dev/null")
+            for line in output:
+                if line.startswith(devicename) and ("SSID:" in line):
+                    ssid = line[line.find("SSID:")+5:].strip().replace('"',"")
+            
+
+            results = {ap: value for ap, value in results.items() if results[ap]['ssid'] == ssid}
+
+
+
         # Convert timedelta to integer to avoid
         #    TypeError: Object of type timedelta is not JSON serializable
         for ap in results:
+            # if concise required, drop unecessary data
+            if self.concise:
+                results[ap] = {prop: value for prop, value in results[ap].items() if prop in REQUIRED_PROP}
+            #print(f"ap : {ap}")
             for prop in results[ap]:
+                #print(f"prop: {prop}")
                 if isinstance(results[ap][prop], datetime.timedelta):
                     results[ap][prop] = int(
                         results[ap][prop].microseconds)/1000
@@ -514,6 +573,7 @@ class Scanner(object):
                 if 'supported_rates' in bss:
                     del bss['supported_rates']
 
+
                 # Convert timedelta objects for later JSON encoding
                 for prop in bss:
                     if isinstance(bss[prop], datetime.timedelta):
@@ -588,6 +648,11 @@ class Scanner(object):
             logger.debug("Updating WiFi interface data ...")
             self.update_iface_details(nl80211.NL80211_CMD_GET_STATION)
             self.update_iface_details(nl80211.NL80211_CMD_GET_SCAN)
+
+        if self.concise:
+            self.iface_data[self.if_idx] = {prop : val for prop, val in self.iface_data[self.if_idx].items() if prop in REQUIRED_PROP}
+        
+
         return self.iface_data[self.if_idx]
 
     def get_current_bssid(self):

@@ -72,7 +72,7 @@ class Collector(object):
             client.server_hostname = self._iperf_server
             client.port = 5201 # substitute some default port
 
-        client.protocol = 'tcp' if udp else 'tcp'
+        client.protocol = 'udp' if udp else 'tcp'
         client.reverse = reverse
         rospy.loginfo(
             'Running iperf to %s; udp=%s reverse=%s', self._iperf_server,
