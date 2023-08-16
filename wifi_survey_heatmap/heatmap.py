@@ -215,7 +215,8 @@ class HeatMapGenerator(object):
         for row in self._data['survey_points']:
             a['x'].append(row['x'])
             a['y'].append(row['y'])
-            a['channel'].append(row['result']['channel'])
+            if 'channel' in row['result']:
+                a['channel'].append(row['result']['channel'])
             if 'tcp' in row['result']:
                 a['tcp_upload_Mbps'].append(
                     row['result']['tcp']['received_Mbps']
@@ -232,8 +233,10 @@ class HeatMapGenerator(object):
                     row['result']['udp-reverse']['Mbps'])
                 a['jitter_upload'].append(
                     row['result']['udp-reverse']['jitter_ms'])
-            a['tx_power'].append(row['result']['tx_power'])
-            a['frequency'].append(row['result']['frequency']*1e-3)
+            if 'tx_power' in row['result']:
+                a['tx_power'].append(row['result']['tx_power'])
+            if 'frequency' in row['result']:
+                a['frequency'].append(row['result']['frequency']*1e-3)
             if 'bitrate' in row['result']:
                 a['channel_bitrate'].append(row['result']['bitrate'])
             a['signal_quality'].append(row['result']['signal_mbm']+130)
@@ -241,7 +244,8 @@ class HeatMapGenerator(object):
                 row['result']['mac'].upper(),
                 row['result']['mac']
             )
-            a['ap'].append(ap + ' ({0:.1f} GHz)'.format(1e-3*int(row['result']['frequency'])))
+            if 'frequency' in row['result']:
+                a['ap'].append(ap + ' ({0:.1f} GHz)'.format(1e-3*int(row['result']['frequency'])))
         return a
 
     def _load_image(self):
@@ -298,9 +302,9 @@ class HeatMapGenerator(object):
                 ssid = row['result']['scan_results'][scan]['ssid']
                 if ssid in self._ignore_ssids:
                     continue
-                freq = row['result']['scan_results'][scan]['frequency'] / 1e6
+                freq = int(row['result']['scan_results'][scan]['frequency']) / 1e6
                 channels[int(freq)].append(
-                    row['result']['scan_results'][scan]['signal_mbm'] + 100
+                    int(row['result']['scan_results'][scan]['signal_mbm']) + 100
                 )
         # collapse down to dict of frequency (GHz) to average quality (float)
         for freq in channels.keys():

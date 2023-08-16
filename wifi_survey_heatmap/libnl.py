@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 
 
 
-REQUIRED_PROP = {"bssid", "signal_mbm", "ssid", "name","mac"}
+REQUIRED_PROP = {"bssid", "signal_mbm", "ssid", "name","mac", "frequency", "channel"}
 
 
 
