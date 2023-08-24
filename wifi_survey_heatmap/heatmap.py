@@ -169,6 +169,30 @@ class HeatMapGenerator(object):
             'Initialized HeatMapGenerator; title=%s',
             self._title
         )
+
+        # Remove duplicated entried
+
+        # Read the JSON data from the file
+        with open(self._title, 'r') as file:
+            data = json.load(file)
+
+        # Extract x and y values from survey points and identify duplicates
+        unique_points = set()
+        new_survey_points = []
+
+        for point in data["survey_points"]:
+            coords = (point["x"], point["y"])
+            if coords not in unique_points:
+                unique_points.add(coords)
+                new_survey_points.append(point)
+
+        # Update the survey points in the data to exclude duplicates
+        data["survey_points"] = new_survey_points
+
+        # Save the updated JSON data back to the file (or to a new file if you want to preserve the original)
+        with open(self._title, 'w') as file:
+            json.dump(data, file)
+
         with open(self._title, 'r') as fh:
             self._data = json.loads(fh.read())
         if 'survey_points' not in self._data:
