@@ -53,6 +53,7 @@ from matplotlib.patheffects import withStroke
 from matplotlib.font_manager import FontManager
 from matplotlib.colors import ListedColormap
 import matplotlib
+import itertools
 
 
 FORMAT = "[%(asctime)s %(levelname)s] %(message)s"
@@ -170,6 +171,7 @@ class HeatMapGenerator(object):
             self._title
         )
 
+
         # Remove duplicated entried
 
         # Read the JSON data from the file
@@ -188,10 +190,6 @@ class HeatMapGenerator(object):
 
         # Update the survey points in the data to exclude duplicates
         data["survey_points"] = new_survey_points
-
-        # Save the updated JSON data back to the file (or to a new file if you want to preserve the original)
-        with open(self._title, 'w') as file:
-            json.dump(data, file)
 
         with open(self._title, 'r') as fh:
             self._data = json.loads(fh.read())
@@ -263,6 +261,8 @@ class HeatMapGenerator(object):
                 a['frequency'].append(row['result']['frequency']*1e-3)
             if 'bitrate' in row['result']:
                 a['channel_bitrate'].append(row['result']['bitrate'])
+            if 'mac' in row['result']:
+                a['bssid'].append(row['result']['mac'])
             a['signal_quality'].append(row['result']['signal_mbm']+130)
             ap = self._ap_names.get(
                 row['result']['mac'].upper(),
@@ -406,6 +406,20 @@ class HeatMapGenerator(object):
             [withStroke(foreground="w", linewidth=3)]
         )
         return at
+    
+    def generate_markers(self):
+        # Predefined marker styles in matplotlib
+        marker_styles = ['o', 's', '^', 'v', '<', '>', 'p', '*', 'H', '+', 'x', 'D', '|', '_']
+
+        # Some distinct colors
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+
+        # Generate combinations of marker styles and colors
+        markers = list(itertools.product(marker_styles, colors))
+
+        # Return the first 50 combinations
+        return markers[:50]
+
 
     def _plot(self, a, key, title, gx, gy, num_x, num_y):
         if key not in a:
@@ -415,11 +429,21 @@ class HeatMapGenerator(object):
             logger.info("Skipping {} because data has holes".format(key))
             return
         logger.debug('Plotting: %s', key)
+
+        # Create a mapping of BSSIDs to unique markers
+        # Create a mapping of BSSIDs to unique markers
+        unique_bssids = list(set(a['bssid']))
+        markers = self.generate_markers()
+        bssid_to_marker = {bssid: markers[i % len(markers)] for i, bssid in enumerate(unique_bssids)}
+
+    
+
+
         pp.rcParams['figure.figsize'] = (
-            self._image_width / 300, self._image_height / 300
+            self._image_width / 100, self._image_height / 250
         )
         fig, ax = pp.subplots()
-        ax.set_title(title)
+        ax.set_title(title, fontsize=10)
         if 'min' in self.thresholds.get(key, {}):
             vmin = self.thresholds[key]['min']
             logger.debug('Using min threshold from thresholds: %s', vmin)
@@ -477,17 +501,36 @@ class HeatMapGenerator(object):
             for idx in range(0, len(a['x'])):
                 if (a['x'][idx], a['y'][idx]) in self._corners:
                     continue
-                ax.plot(
-                    a['x'][idx], a['y'][idx], zorder=200,
-                    marker='o', markeredgecolor='black', markeredgewidth=1,
-                    markerfacecolor=mapper.to_rgba(a[key][idx]), markersize=6
-                )
-                ax.text(
-                    a['x'][idx], a['y'][idx] - 30,
-                    a['ap'][idx], fontsize=labelsize,
-                    horizontalalignment='center'
-                )
+                # ax.plot(
+                #     a['x'][idx], a['y'][idx], zorder=200,
+                #     marker='o', markeredgecolor='black', markeredgewidth=1,
+                #     markerfacecolor=mapper.to_rgba(a[key][idx]), markersize=6
+                # )
+                # ax.text(
+                #     a['x'][idx], a['y'][idx] - 30,
+                #     a['ap'][idx], fontsize=labelsize,
+                #     horizontalalignment='center'
+                # )
+                # Plotting the BSSID
+                for idx in range(0, len(a['x'])):
+                    if (a['x'][idx], a['y'][idx]) in self._corners:
+                        continue
+                    style, color = bssid_to_marker[a['bssid'][idx]]
+                    ax.plot(
+                        a['x'][idx], a['y'][idx], zorder=200,
+                        marker=style, 
+                        markeredgecolor=color, markeredgewidth=1,
+                        markerfacecolor=color, markersize=1
+                    )
             # end plotting points
+
+        # Create a legend for BSSID markers
+        legend_handles = [matplotlib.lines.Line2D([0], [0], marker=style, color='w', 
+                                          markerfacecolor=color, markersize=4, label=bssid) 
+                  for bssid, (style, color) in bssid_to_marker.items()]
+        ax.legend(handles=legend_handles, loc='upper left', bbox_to_anchor=(-1, 1), fontsize=4, ncol=2)  # Adjust ncol as needed
+
+    
         fname = '%s_%s.png' % (key, self._title)
         logger.info('Writing plot to: %s', fname)
         pp.savefig(fname, dpi=300)
